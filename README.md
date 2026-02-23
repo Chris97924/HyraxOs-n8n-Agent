@@ -13,7 +13,7 @@
 ## 📸 專案預覽 (Project Preview)
 
 ![Workflow Architecture](architecture.png)
-> 💡 **架構說明**：透過 Sticky Note 將系統分為五大模組（主控路由、量化分析、視覺 RAG、美食抽籤、知識庫注入），實現低耦合高內聚。
+> 💡 **架構說明**：系統分為五大模組（主控路由、量化分析、視覺 RAG、美食抽籤、新增知識庫）。
 
 ---
 
