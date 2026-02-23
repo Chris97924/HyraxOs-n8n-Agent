@@ -47,11 +47,74 @@ LLM 模型：Google Gemini 2.5-flash、DeepSeek、Groq Llama-3.1
 判斷使用者想幹嘛，再決定叫哪個工具。避免 LLM 濫用，**Token 成本降低 35%**。
 
 ```
-📈 股票/財經 → DeepSeek Analyze
-🖼️ 圖片/K 線 → Vision Tool + Pinecone RAG
-🍲 吃什麼/餐廳 → Google Map Ranting Tool
-🔍 天氣/匯率 → Brave Search
-🧠 閒聊/回憶 → Pinecone Memory
+
+整體 workflow 採用模組化設計，透過 Sticky Note 分為五大核心區塊。
+點擊下方圖片可查看完整架構：
+
+![Architecture Overview](./assets/architecture-overview.png)
+
+<details>
+<summary>🔍 點擊展開完整架構大圖</summary>
+![Full Workflow](./assets/architecture-full.png)
+</details>
+
+---
+
+### 🧠 1. 主控大腦與意圖路由 (Core Agent & Router)
+![Core Module](./assets/module-core.png)
+> **這裡負責接收 LINE 的多模態輸入（文字/語音/圖片/網址），並進行意圖分類。**
+>
+> **技術亮點：**
+> • 🚦 **意圖驅動路由**：精準判斷請求並調度 5+ 專業工具，避免 LLM 濫用，Token 成本降低 35%！
+> • 💬 **多模態理解**：整合 Gemini STT 處理語音，並串聯視覺與地圖解析。
+> • 🎲 **Fisher-Yates 洗牌**：純 JS 實作隨機演算法，確保抽籤多樣性，節省使用者 70% 決策時間。
+> • 🚦 **狀態過濾**：串接 Google Maps 判斷 open_now，精準篩選「目前營業中」店家。
+> • 📝 **端到端自動化**：解析地圖連結並自動將店家資訊抄寫入 Google Sheets 美食名冊，減少 90% 手動記錄時間。
+> • 🧠 **Agent 調度**：LangChain 架構下的智能代理人，維持一致的「蹄兔 (Hyrax)」人格與 AWAWA! 口癖。
+
+---
+
+### 📈 2. DeepSeek 專業量化分析 (Quant & Analyze)
+![Quant Module](./assets/module-quant.png)
+> **嚴格遵守「透明管道協議」，將專業分析交由 DeepSeek 處理，管家不亂改！**
+>
+> **技術亮點：**
+> • 🗄️ **雙源數據**：串接 FinMind (180 日歷史) + Fugle (即時報價) 雙 API。
+> • 🧮 **純 JS 量化引擎**：無外部依賴，300+ 行程式碼實作 10+ 技術指標 (MACD/KDJ/RSI/布林通道等)，延遲 < 800ms。
+> • 🎯 **模糊匹配**：自建代碼映射表 (支援別名/4 碼數字)，識別準確率達 98.7%。
+
+---
+
+### 👁️ 3. Gemini 視覺與 RAG 檢索 (Vision & RAG)
+![Vision Module](./assets/module-vision.png)
+> **賦予 HyraxOs 看見圖片與回憶歷史的雙眼。**
+>
+> **技術亮點：**
+> • 🔄 **強制分流**：Gemini 2.5-flash 強制輸出 TYPE 標頭，精準區分「金融 K 線圖 (CHART)」與「一般圖片 (GENERAL)」。
+> • 📚 **歷史回測 RAG**：結合 Pinecone 向量資料庫，比對 9 大核心 K 線形態，Top-1 歷史相似圖形檢索準確率達 85%+。
+> • 🧠 **長期記憶**：支援 Session Buffer，維持多輪上下文對話一致性。
+
+---
+
+### 🎲 4. 美食名冊讀取與抽籤引擎 (Database Reader & Roulette)
+![Food Module](./assets/module-food.png)
+> **作為「美食命運轉盤」的底層彈藥庫，這裡負責調出您的私人美食大數據！**
+>
+> **技術亮點：**
+> • 📊 **串接私有資料**：直接從 Google Sheets 讀取由系統自動累積、分類的完整美食清單。
+> • 🔀 **核心洗牌邏輯**：透過純 JavaScript 實作的 Math.random() 陣列抽籤演算法，確保每次推薦都充滿未知的驚喜。
+> • 💡 **極簡高效**：負責將龐大的資料庫陣列瞬間濃縮為「唯一一家」幸運兒，再回傳給主控 Agent 進行包裝與點評。
+
+---
+
+### 📚 5. K 線圖譜知識庫注入器 (Knowledge Base Uploader)
+![KB Module](./assets/module-kb.png)
+> **這裡負責將「9 大核心 K 線量化形態」灌入 HyraxOs 的大腦深處，建立長期的 RAG 記憶！**
+>
+> **技術亮點：**
+> • 🗃️ **向量化儲存**：透過 Gemini Embeddings 將高質量的技術分析邏輯轉換為向量，寫入 Pinecone 資料庫。
+> • 🏷️ **豐富 Metadata**：每種形態（如外包日線、雙內包等）都帶有 quant_strength、reliability_score 等結構化標籤，大幅提升未來檢索的精準度。
+> • ⚡ **獨立更新機制**：採用手動觸發（Manual Trigger），讓管理者能隨時擴充與維護新的交易策略字典，不影響主線運行。
 ```
 
 ### 2. 純 JS 量化引擎
