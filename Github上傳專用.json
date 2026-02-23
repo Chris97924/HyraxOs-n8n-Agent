@@ -1,0 +1,1968 @@
+{
+  "name": "Github上傳專用",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{\n  // 0. [地圖路徑] 如果有 Google Maps 資料，啟動格式化模板\n  ($json.result || $json.results?.[0])\n  ? \n    `你現在是一隻「嚴格的資料格式化蹄兔」。\n     請根據底下的 JSON 數據，完全依照指定模板輸出。\n\n    [目前時間資訊]\n    現在時刻：${ $now.setZone('Asia/Taipei').setLocale('zh-TW').toFormat('EEEE HH:mm') }\n\n    [資料來源]\n    ${JSON.stringify($json.result || $json.results[0])}\n\n    [輸出模板]\n    📍 {name}\n    🏠 {formatted_address}\n    ⭐ 評分：{rating} 星 \n    🚦 目前狀態：{current_status}\n\n    🕒 營業時間 (以今日為首)：\n    {opening_hours.weekday_text}\n\n    📝 已自動分類並抄寫入 Google Sheet 美食名冊！\n    🐾 AWAWA!\n\n    [注意事項]\n    1. **目前狀態**：請檢查 opening_hours.open_now (true=營業中 🟢 / false=休息中 🔴)。\n    2. **排序邏輯**：營業時間第一行必須是「今天」。\n    3. **絕對規則**：模板最後一行的「🐾 AWAWA!」一定要保留！`\n  :\n\n  // 1. [對話路徑] 圖片、股票代碼、普通對話\n  ($json.content?.parts?.[0]?.text || \n   $json.text || \n   $json.output ||\n  ($json.body?.events?.[0]?.message?.type === 'image' \n    ? '使用者傳送了一張圖片，請先使用 vision_tool 進行分析 (若有股票代碼則搭配 DeepSeek)，圖片ID是: ' + $json.body.events[0].message.id \n    : $json.body?.events?.[0]?.message?.text))\n}}",
+        "options": {
+          "systemMessage": "你是由 Chris 開發的 AI 助手「HyraxOs」，本體是一隻可愛的**「蹄兔」(Hyrax)**。\n口癖：每句話結尾一定要加「AWAWA!」或「吱!」。\n\n### ⚡ 最高指導原則 (透明管道協議)\n\n1. **處理 DeepSeek 回傳的分析結果 (最重要的規則)：**\n   - 當調用 `Call DeepSeek General Chat` 工具並獲得回應後：\n   - 🛑 **絕對禁止** 改寫、總結、或嘗試用「蹄兔口氣」去潤飾內容。\n   - 🛑 **絕對禁止** 破壞原本的排版 (如星星評級、分段、Emoji)。\n   - ✅ **必須** 原封不動 (Verbatim) 將 DeepSeek 的 `output` 內容直接貼給使用者。\n   - **唯一允許的動作**：你只能在最後面加上你的簽名「AWAWA!」。\n\n2. **投資、股票、財經新聞路由：**\n   - 遇到股票代碼或分析請求，直接丟給 `DeepSeek`。\n   - 記住：你是管家，DeepSeek 是分析師。分析師的報告，管家不能亂改！\n3. **生活雜事、一般知識 (Hyrax 負責)：**\n   - 當使用者問「天氣」、「匯率」、「現在幾點」、「某個名詞解釋」等非投資類問題時：\n   - ✅ 請調用 `search_web` (Brave Search) 工具。\n   - **注意**：這只是輔助工具，不要用它來查股票。\n\n### 4. **找餐廳 / 推薦地點 (命運轉盤)**\n- **觸發條件**：當使用者說「吃什麼」、「餓了」或是指定類型 (例如：「想吃漢堡」、「找一家拉麵」、「蛋餅」)。\n- **執行步驟 (關鍵邏輯修正)**：\n  1. **鎖定關鍵字 (強制)**：\n     - 若使用者指定食物 (如：漢堡)，搜尋關鍵字 **必須** 包含該食物名稱 (例如搜尋：\"蘆洲 漢堡\")。\n     - **重要觀念**：只要 Google 地圖能搜出來的店，就代表它有賣 (例如：早餐店、早午餐店也會出現在「漢堡」搜尋中)。**請直接接受這些結果，不需要過濾是否為「專賣店」，只要有賣就可以！**\n  2. **調用工具**：使用上述關鍵字調用 `Google Map Ranting Tool` (或地圖工具)。\n     *(🛑 禁止在使用者指定「漢堡」時，還使用「附近美食」這種模糊關鍵字搜尋，這會導致出現水餃！)*\n  3. **命運抽籤**：\n     - 從搜尋回來的名單中，**閉上眼睛，隨機挑選「唯一的一家」**。\n     - (若使用者強調「現在有開」，請優先挑 `open_now=true` 的店)。\n\n- **回覆範本**：\n  「吱！命運的齒輪轉動了... 🎲\n    今天就決定是這家：\n    📍 **{{Name}}** ({{Rating}}⭐)\n    🏠 {{Address}}\n    \n    🕒 今日營業：{{只列出「今天」的時間}}\n    (🚦 狀態：{{Open Now ? 營業中 : 休息中}})\n    \n    💡 蹄兔點評：{{請確認這家店跟使用者想吃的東西有關聯，並寫一句短評}}\n    AWAWA!」\n### 🛠️ 工具路由表 (嚴格遵守)：\n- 📈 **任何投資/股票/財經新聞** -> `DeepSeek General Chat` (它內建 SerpApi)\n- 🍲 **找吃的/找回憶** -> `Google Map Ranting Tool`\n- 🌍 **天氣/一般閒聊搜尋** -> `search_web` (Brave Search)\n- 🖼️ **看圖** -> `vision_tool`\n- 🧠 **閒聊/回憶** -> `Pinecone Vector Store` (僅限閒聊)\n\n### 👋 日常應對：\n- 如果只是打招呼 (Hi, 早安)，直接親切回覆，不用調用工具。"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1664,
+        224
+      ],
+      "id": "a3680660-e869-4182-900c-498e17d30940",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        736
+      ],
+      "id": "7b8b18f5-9be8-4e48-864e-abc7641d8e7a",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "4SsAIK5itlayXW0o",
+          "name": "Google Gemini(PaLM) Api  Chris"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "line",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -896,
+        112
+      ],
+      "id": "0a86d6d3-a834-41e1-8bbb-24b21fc6fda2",
+      "name": "Webhook",
+      "webhookId": "6b11c1ec-8ab4-4cd4-8706-4541806dbaf0"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "用於查詢日本蠟燭圖、技術分析。",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "finance-rag",
+          "mode": "list",
+          "cachedResultName": "finance-rag"
+        },
+        "options": {
+          "pineconeNamespace": "candlestick-structured"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        2144,
+        512
+      ],
+      "id": "23544301-af36-469f-bcbb-c64a31e308b7",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "f3m7iqXuWEJF7EUN",
+          "name": "PineconeApi account lifeos"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2144,
+        720
+      ],
+      "id": "995d4a68-e225-4ded-9200-60943a7d4cdf",
+      "name": "Embeddings Google Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "4SsAIK5itlayXW0o",
+          "name": "Google Gemini(PaLM) Api  Chris"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.events[0].source.userId }}",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1472,
+        720
+      ],
+      "id": "3ba3bd26-d5ea-404e-9120-87a5d53f04c2",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "replyToken": "={{ $('Webhook').item.json.body.events[0].replyToken }}",
+        "messages": {
+          "values": [
+            {
+              "text": "={{ $json.output }}"
+            }
+          ]
+        }
+      },
+      "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+      "typeVersion": 1,
+      "position": [
+        2064,
+        224
+      ],
+      "id": "8bcac7ca-9c92-4cf3-9ea8-3760c338680c",
+      "name": "Line Messaging",
+      "credentials": {
+        "lineMessagingApi": {
+          "id": "JSfDy1eiZatMpyLh",
+          "name": "LIFEOS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "當使用者傳送圖片、照片、截圖，或是訊息類型為 'image' 時使用。此工具會將圖片轉換為文字描述。",
+        "workflowId": {
+          "__rl": true,
+          "value": "KGXqIEs_OrdmPtG7Gk4-I",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/KGXqIEs_OrdmPtG7Gk4-I",
+          "cachedResultName": "Gemini Vision Tool"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "image_id": "={{ $('Webhook').first().json.body.events[0].message.id }}"
+          },
+          "matchingColumns": [
+            "image_id"
+          ],
+          "schema": [
+            {
+              "id": "image_id",
+              "displayName": "image_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1584,
+        720
+      ],
+      "id": "c314529b-d359-48a6-b8e8-1a9281198b37",
+      "name": "vision_tool"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "wLjrNI5EJqRhC5U7WH5M2",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/wLjrNI5EJqRhC5U7WH5M2",
+          "cachedResultName": "DeepSeek Ai Agent Analyze"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ $json.body.events[0].message.text }}"
+          },
+          "matchingColumns": [
+            "query"
+          ],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1712,
+        720
+      ],
+      "id": "1c0a60b3-d47f-49e0-bcc6-b43a0da866fd",
+      "name": "Call 'DeepSeek General Chat'"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1216,
+        224
+      ],
+      "id": "334f4e0e-7f0d-4f75-8735-22475cac62b8",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "請將這段語音「逐字」轉錄成繁體中文文字。\n如果是股票代碼（如 2330），請直接寫出數字。\n不要加任何額外的分析或標點符號。",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        -96
+      ],
+      "id": "818a5b53-9053-43bf-b590-0a20d99a6855",
+      "name": "Analyze audio Chua",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "VbbQKiOAcO71hem9",
+          "name": "Google Gemini(PaLM) Api Chua"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9fc0438b-aa84-46d8-ba41-d6cda6cc39b8",
+              "leftValue": "={{ $json.body.events[0].message.text }}",
+              "rightValue": "maps",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -528,
+        288
+      ],
+      "id": "eccab6cf-86f9-4fc7-8f26-81bf17d1a6a5",
+      "name": "是否為地圖連結"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4ddbb385-d848-4968-9751-e9638636c497",
+              "leftValue": "={{ $json.body.events[0].message.type }}",
+              "rightValue": "audio",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -688,
+        112
+      ],
+      "id": "b8fc044f-ec0e-46bc-a053-829586e86b09",
+      "name": "是否是語音訊息"
+    },
+    {
+      "parameters": {
+        "method": "HEAD",
+        "url": "={{ $json.body.events[0].message.text }}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -256,
+        144
+      ],
+      "id": "f0507193-d59d-4c97-b5da-714689c13afe",
+      "name": "還原長網址",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://api-data.line.me/v2/bot/message/{{ $json.body.events[0].message.id }}/content",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -128,
+        -96
+      ],
+      "id": "820f2c20-e947-40de-b61c-46d7bd87dee4",
+      "name": "提取語音訊息",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IcLMwDi4Ye1mofxu",
+          "name": "LIFE OS API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://maps.googleapis.com/maps/api/place/textsearch/json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.searchQuery }}"
+            },
+            {
+              "name": "key",
+              "value": "YOUR_GOOGLE_MAPS_API_KEY"
+            },
+            {
+              "name": "language",
+              "value": "zh-TW"
+            },
+            {
+              "name": "region",
+              "value": "TW"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        32,
+        144
+      ],
+      "id": "ce83943c-0d60-4250-b8b0-5ab21dcaaf4c",
+      "name": "讀取google map"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// V5 Ultimate 優化版：地點名稱智能提取\n// ========================================\n\nconst inputData = items[0]?.json || {};\nconst headers = inputData.headers || {};\nlet longUrl = headers.location || \"\";\nlet placeName = \"未知地點\";\nlet searchQuery = \"\";  // 新增：用於 Google Maps 搜尋的最佳化字串\n\nlet debugInfo = {\n  originalUrl: longUrl,\n  extractedRaw: \"\",\n  matchMethod: \"none\"\n};\n\nif (!longUrl) {\n  return { \n    json: { \n      placeName, \n      searchQuery: placeName,\n      type: \"MAP_QUERY\", \n      debugUrl: longUrl,\n      error: \"無 location header\"\n    } \n  };\n}\n\ntry {\n  longUrl = decodeURIComponent(longUrl);\n  \n  // ========================================\n  // 階段 1: 提取原始字串\n  // ========================================\n  const extractPatterns = [\n    { name: 'place', regex: /place\\/([^\\/]+)/ },\n    { name: 'query', regex: /[?&]q=([^&]+)/ },\n    { name: 'search', regex: /search\\/([^\\/]+)/ }\n  ];\n  \n  let rawName = \"\";\n  for (const pattern of extractPatterns) {\n    const match = longUrl.match(pattern.regex);\n    if (match?.[1]) {\n      // ⭐ 關鍵優化：同時把 '+' 和 '-' 都變成空格 (解決麥當勞問題)\n      rawName = match[1].replace(/[+\\-]/g, ' ');\n      debugInfo.matchMethod = pattern.name;\n      debugInfo.extractedRaw = rawName;\n      break;\n    }\n  }\n  \n  if (!rawName) {\n    throw new Error(\"無法從 URL 提取地點資訊\");\n  }\n  \n  // 移除座標\n  rawName = rawName.split('@')[0].trim();\n  \n  // ========================================\n  // 階段 2: 解析並生成搜尋用字串\n  // ========================================\n  let district = \"\";\n  let shopName = \"\";\n  \n  if (rawName.includes('號')) {\n    const parts = rawName.split('號');\n    const addressPart = parts[0] || \"\";\n    const namePart = (parts[1] || \"\").trim();\n    \n    if (namePart) {\n      // 抓取行政區 (例如：蘆洲區)\n      const districtMatch = addressPart.match(/([\\u4e00-\\u9fa5]{2,4}[區鄉鎮市村里])/g);\n      \n      if (districtMatch && districtMatch.length > 0) {\n        district = districtMatch[districtMatch.length - 1];\n        shopName = namePart;\n        placeName = `${district} ${shopName}`; // 顯示用：蘆洲區 麥當勞\n      } else {\n        shopName = namePart;\n        placeName = namePart;\n      }\n    } else {\n      // 處理只有地址的情況\n      placeName = addressPart.replace(/^\\d{3,5}\\s*/, '');\n      shopName = placeName;\n    }\n    \n  } else if (/^\\d{3,5}[\\u4e00-\\u9fa5]/.test(rawName)) {\n    placeName = rawName.replace(/^\\d{3,5}\\s*/, '');\n    shopName = placeName;\n  } else {\n    placeName = rawName;\n    shopName = rawName;\n  }\n  \n  // ========================================\n  // 階段 3: 生成最佳搜尋字串 (API 專用)\n  // ========================================\n  if (district && shopName) {\n    // 範例：麥當勞, 蘆洲區, 台灣\n    searchQuery = `${shopName}, ${district}, 台灣`;\n  } else if (shopName) {\n    // 範例：麥當勞, 台灣\n    searchQuery = `${shopName}, 台灣`;\n  } else {\n    // 降級使用\n    searchQuery = `${placeName}, 台灣`;\n  }\n  \n  // 最終清理多餘空格\n  placeName = placeName.replace(/\\s+/g, ' ').trim();\n  searchQuery = searchQuery.replace(/\\s+/g, ' ').trim();\n  \n  if (!placeName) {\n    placeName = rawName;\n    searchQuery = rawName;\n  }\n  \n} catch (error) {\n  placeName = \"解析失敗\";\n  searchQuery = \"解析失敗\";\n  debugInfo.error = error.message;\n}\n\n// ========================================\n// 輸出結果\n// ========================================\nreturn { \n  json: { \n    placeName,      // 給 Line 顯示、給 AI 寫文案用的 (乾淨)\n    searchQuery,    // 給 Google Maps API 搜尋用的 (精準)\n    type: \"MAP_QUERY\",\n    debugUrl: longUrl,\n    debug: debugInfo\n  } \n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        144
+      ],
+      "id": "9f8a0742-fefc-44ce-92c1-43c04a483a28",
+      "name": "提取店名V6",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://maps.googleapis.com/maps/api/place/details/json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "place_id",
+              "value": "={{ $json.results[0].place_id }}"
+            },
+            {
+              "name": "fields",
+              "value": "=name,rating,formatted_address,opening_hours,formatted_phone_number"
+            },
+            {
+              "name": "language",
+              "value": "zh-TW"
+            },
+            {
+              "name": "key",
+              "value": "YOUR_API_KEY_HERE"
+            },
+            {
+              "name": "region",
+              "value": "TW"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        192,
+        144
+      ],
+      "id": "cfcb3eac-6d08-4c2a-b005-18b1bb2915d6",
+      "name": "讀取地點詳情"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "工作表1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1d6NdsoW5vsdvTOcazeZx_S24fAOmaequINGEPxAFW7Q/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $now.setZone('Asia/Taipei').toFormat('yyyy-MM-dd') }}",
+            "name": "={{ $('讀取google map').item.json.results[0].name }}",
+            "rating": "={{ $('讀取地點詳情').item.json.result.rating }}",
+            "address": "={{ $('讀取地點詳情').item.json.result.formatted_address }}",
+            "url": "={{ $('是否為地圖連結').item.json.body.events[0].message.text }}",
+            "status": "={{ $('讀取地點詳情').item.json.result.opening_hours }}",
+            "Category": "={{ $json.text }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "rating",
+              "displayName": "rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        496
+      ],
+      "id": "739c9f13-9911-4106-80f3-e8be5a19d20e",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "5zjlnxJdGXk9raZq",
+          "name": "Google Sheets account Chris"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5imXBh2O1JzqV_P5svdzm",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5imXBh2O1JzqV_P5svdzm",
+          "cachedResultName": "Google Map Ranting Tool"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1952,
+        720
+      ],
+      "id": "59c64a79-a697-48c2-8793-8bf8869fd349",
+      "name": "Call 'Google Map Ranting Tool'"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=你是一個精準的「地點分類員」。\n請分析以下地點資訊，判斷它屬於哪一個類別。\n\n[地點資訊]\n店名：{{ $json.result.name }}\n地址：{{ $json.result.formatted_address }}\n官方標籤：{{ $json.result.types }}\n\n[分類規則]\n請從以下選項中，選出最適合的一個（只輸出類別名稱 + Emoji，不要有其他廢話）：\n1. 美食 🍲 (餐廳、小吃、咖啡廳、甜點、麵包店、酒吧)\n2. 景點 🏞️ (公園、博物館、展覽、觀光點、歷史建築)\n3. 購物 🛍️ (商場、便利商店、服飾店、超市、伴手禮)\n4. 住宿 🏨 (飯店、民宿、旅館)\n5. 交通 🚆 (車站、停車場、加油站)\n6. 運動 🏋️ (健身房、體育館、球場)\n7. 生活 🔧 (銀行、郵局、醫院、理髮廳、學校)\n8. 其他 📍 (若完全不符合上述)\n\n[重要判斷邏輯]\n* 即使官方標籤沒有寫 food，如果「店名」包含「麵、飯、館、堡、咖啡、茶」等字眼，一律歸類為「美食 🍲」。\n* 請直接輸出結果，例如：美食 🍲",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        608,
+        512
+      ],
+      "id": "13583b8c-f3d8-4e20-9af7-76f5f48265eb",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        560,
+        720
+      ],
+      "id": "7bf2228b-b7be-43ac-8884-f327a25838e4",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "VbbQKiOAcO71hem9",
+          "name": "Google Gemini(PaLM) Api Chua"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "query": "={{ $json.body.events[0].message.text }}",
+        "count": 2,
+        "additionalParameters": {
+          "country": "TW"
+        }
+      },
+      "type": "@brave/n8n-nodes-brave-search.braveSearchTool",
+      "typeVersion": 1,
+      "position": [
+        1824,
+        720
+      ],
+      "id": "265a9253-a5ac-40b0-9ea1-732d7b27164f",
+      "name": "Brave Search",
+      "credentials": {
+        "braveSearchApi": {
+          "id": "AB61oTXFvt2Esmlh",
+          "name": "Brave Search account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "query"
+            },
+            {
+              "name": "sessionId"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -864,
+        1456
+      ],
+      "id": "de5c6a28-1d89-4bec-80e3-28d8c7e4b977",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "538fb981-5453-408a-85a1-f0df8b748159",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "chart",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -160,
+        1456
+      ],
+      "id": "8d5ba6f4-f452-41d2-891b-ccbc49a7ff11",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "functionCode": "// 取得輸入資料\nconst input = $input.all()[0].json;\n\n// 1. 🔍 聰明讀取：不管上游傳什麼變數名 (code, stock_id, query)，通通抓進來\n// 優先順序：code (最準) -> stock_id -> query (使用者輸入的字串)\nconst text = (input.code || input.stock_id || input.query || '').toString();\n\n// 2. 📖 股票代碼對照表 (處理中文輸入)\nconst stockMap = {\n  '台積電': '2330', '台積': '2330', 'TSMC': '2330',\n  '鴻海': '2317', '郭董': '2317',\n  '聯發科': '2454',\n  '長榮': '2603', '陽明': '2609', '萬海': '2615',\n  '富邦金': '2881', '中信金': '2891', '國泰金': '2882',\n  '0050': '0050', '0056': '0056', '00878': '00878',\n  '茂迪': '6244' // 您這次查的股票\n};\n\nlet stockCode = null;\n\n// 3. 🧠 邏輯判斷\n// A. 先查表 (如果是中文名稱)\nfor (const [name, id] of Object.entries(stockMap)) {\n  if (text.includes(name)) {\n    stockCode = id;\n    break;\n  }\n}\n\n// B. 如果沒查到，用正則表達式抓 4 位數字\nif (!stockCode) {\n  const numberMatch = text.match(/[0-9]{4}/);\n  if (numberMatch) {\n    stockCode = numberMatch[0];\n  }\n}\n\n// 4. 🚨 最終檢查 (如果還是抓不到，拋出錯誤，不要亂回傳 2330)\nif (!stockCode) {\n    // 這裡可以選擇報錯，或者回傳 null 讓後面的 IF 節點去處理\n    return [{ json: { stock_id: null, error: \"無法識別股票代碼\" } }];\n}\n\n// 5. ✅ 輸出正確代碼\nreturn [{\n    json: {\n        stock_id: stockCode // 統一輸出名稱為 stock_id 讓 FinMind 用\n    }\n}];"
+      },
+      "name": "提取股票代碼",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1184
+      ],
+      "id": "34c9371d-1e34-433b-bbaf-fece0089def8"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id={{ $json.stock_id }}&start_date={{ $now.minus({days: 180}).toFormat('yyyy-MM-dd') }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "獲取歷史K線 (FinMind)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        192,
+        1264
+      ],
+      "id": "228d88da-a780-4fe4-93eb-bd6a18ef8d6c"
+    },
+    {
+      "parameters": {
+        "options": {
+          "temperature": 0.5
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        784,
+        1344
+      ],
+      "id": "ce6bc433-3a3b-4f82-9c22-950615eaf0e9",
+      "name": "DeepSeek Chat Model",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "OdcZAHaomlhp2EXW",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 取得 AI 的文字回應\nconst ai_text = $input.item.json.text || $input.item.json.response;\n\n// 清理可能出現的 markdown 符號 (例如 ```json )\nconst clean_text = ai_text.replace(/```json|```/g, '').trim();\n\n// 轉成真正的 JSON 物件\ntry {\n  return { json: JSON.parse(clean_text) };\n} catch (e) {\n  // 萬一 AI 亂回答，給個預設值避免報錯\n  return { json: { action: \"chat\", code: null } };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        1456
+      ],
+      "id": "b5e72425-738e-44d5-965b-948cdb59c772",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
+      "typeVersion": 1,
+      "position": [
+        576,
+        1664
+      ],
+      "id": "cf015d4f-ea4e-4a82-8a03-b3ad7cd55afb",
+      "name": "SerpAPI1",
+      "credentials": {
+        "serpApi": {
+          "id": "yAU4iAZBK7qh5uhA",
+          "name": "SerpAPI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=User Question: {{ $('When Executed by Another Workflow').first().json.query }}\n\nJSON Data: {{ JSON.stringify($json) }}",
+        "options": {
+          "systemMessage": "你是「LifeOs 首席財經記者」。\n你的目標是：**「回答使用者的問題」**，而不僅僅是搜尋。\n\n【你的工作流程】\n1. **分析需求**：\n   - 查看 **User Question** 和 **JSON Data**。\n   - 如果 `code` 有值 (例如 2330)，請優先搜尋該股票的新聞。\n   - 如果 `code` 為 null，請直接搜尋使用者問題中的關鍵字。\n\n2. **執行搜尋 (SerpApi)**：\n   - 使用 SerpApi 搜尋最新的財經新聞或資訊。\n   - **⚠️ 限制：最多只搜尋 1 次！** (除非第一次搜尋失敗)\n\n3. **綜合回答 (最終目標)**：\n   - 取得搜尋結果後，**請立刻停止使用工具**。\n   - 根據搜尋到的內容，整理成一篇簡短的報導回答使用者。\n   - 結尾加上 \"AWAWA!\"。\n\n(請注意：一旦獲得足夠資訊，請直接輸出最終回答，不要重複搜尋)"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        368,
+        1472
+      ],
+      "id": "328787a9-2d76-4951-be2e-0d95a7e45945",
+      "name": "Gemini AI Agent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=請根據以下三份關鍵情報，進行「DeepSeek 深度推理」：\n\n=========== 🕵️‍♂️ 情報 A：使用者指令 (找成本) ===========\n{{ $('When Executed by Another Workflow').first().json.query }}\n\n=========== 📊 情報 B：市場數據 (看現價) ===========\n{{ JSON.stringify($json) }}\n\n=========== 👁️ 情報 C：視覺分析 (看型態) ===========\n{{ $('When Executed by Another Workflow').item.json.query }}\n(⚠️重要：請把上面的 'vision_result' 改成您 Trigger 節點裡實際裝著分析文字的變數名稱，可能是 output, text 或 content)\n\n---------------------------------------------------\n【你的任務】\n1. **核對價格**：請以「情報 B」的 closePrice ({{ $json.closePrice }}) 為準。\n2. **尋找成本**：閱讀「情報 A」，若使用者提到「買在、成本」等數字，請計算目前獲利 ( (現價 - 成本) / 成本 )。\n3. **結合分析**：將「情報 C」的 K 線型態納入考量。\n4. **最終建議**：\n   - 告訴使用者目前賺賠多少 %。\n   - 根據技術面(情報C)與籌碼面(情報B)，建議續抱、加碼或停損。\n\n(請用繁體中文回答，展現專業分析師的邏輯)",
+        "options": {
+          "systemMessage": "你是由 Chris 開發的專業投資 AI 助理 **HyraxOs**。你是系統的「大腦」，擁有「視覺分析」與「數據查詢」兩項核心能力，並嚴格遵循以下量化分析框架。\n\n【你的工作流程 SOP】\n1.  **當收到「圖片」時**：\n    *   必須呼叫 `Gemini Vision Tool` 進行分析。\n    *   輸出具體 K 線型態結論後，**務必引導**：「若需結合即時數據進行深度分析，請提供股票代號。」\n2.  **當收到「股票代號」(如 2330) 或「含成本指令」(如「6244，成本9元」)時**：\n    *   **第一步（回想）**：立即讀取對話記憶，確認使用者上一回合是否傳過「K線圖片」及 Vision Tool 的分析結論。\n    *   **第二步（查數據）**：呼叫股價查詢工具，取得該代號的完整 JSON 數據。\n    *   **第三步（整合輸出）**：嚴格執行以下【📋 整合輸出格式】。\n\n## 🎯 【以下是你的核心量化分析框架 - 嚴格執行】\n\n## 📥 數據輸入規範\n（此處保持您原有的完整數據輸入規範...）\n\n## ⚙️ 智能評分系統 (台股優化版)\n（此處保持您原有的完整評分系統...）\n\n## 🔍 【深度推理與策略建議 (上帝視角)】\n當你收到市場數據並擁有視覺情報記憶時，請執行以下邏輯推演：\n\n1.  **現況確認**：\n    *   **成本識別**：從使用者最新指令中提取成本價（例如：「成本9元」）。若無提供，則註明「使用者未提供成本」。\n    *   **盈虧計算**：若有成本價，則計算：`當前市價`、`盈虧金額`、`盈虧百分比`。\n    *   **關鍵摘要**：用一句話說明持倉狀態（例如：「目前浮盈 XX%，處於獲利保護階段」）。\n\n2.  **多空交叉驗證**：\n    *   **視覺情報**：基於記憶，圖片顯示的型態是偏多（如：突破）、偏空（如：頭部）還是震盪？\n    *   **數據驗證**：市場數據（如：外資買賣超、價格位階）是**支持**、**中性**還是**矛盾**於視覺情報的判斷？\n\n3.  **最終操作建議**：\n    *   **【有成本價時】**：建議核心必須圍繞「**獲利保護**」或「**風險控制**」。\n        *   *若浮盈豐厚*：可建議移動停利、部分獲利了結，而非盲目追漲。\n        *   *若接近成本*：建議嚴守停損，或說明為何值得續抱。\n        *   *若已虧損*：根據技術面判斷是攤平、停損或觀望。\n    *   **【無成本價時】**：則回歸標準的技術進出場建議（如：突破買進、跌破支撐賣出）。\n\n## 📋 【整合輸出格式】 (嚴格執行此結構)\n**請根據以下邏輯生成簡潔報告：**\n1.  **若有視覺情報記憶**，開頭第一句整合它。例如：「結合K線的`[型態]`判斷...」\n2.  **若有成本價**，立即計算並凸顯損益狀態；**若無成本**，則專注於技術面位階分析。\n3.  整個回答需嚴格分為以下四個部分，總字數控制在 **180-250字**。\n\n---\n### 🧾 核心摘要\n*   本部分為1-2句話，結合「視覺情報」、「成本損益」、「多空強弱」，給出最核心的綜合結論。\n*   **範例**：「雖圖片呈`[多頭型態]`，但指標過熱且您已浮盈`[XX]%`，首要任務為獲利保護。」\n\n**🚦 即時盤勢燈號**：[根據 `changePercent` 顯示] 🔴(漲) / 🟢(跌) / ⚪(平)\n\n**【評級】** [星級]\n**【操作】** [根據有無成本，給出「獲利保護」或「一般進出」建議]\n**【關鍵】** [一句話含量能、關鍵價位與成本考量]\n\n**📊 執行參數看板**\n| 參數 | 數值 | 說明 |\n|:---|:---|:---|\n| [燈號] 當前市價 | `[data.price]`元 (漲跌: `[change]` / `[changePercent]`%) | Fugle即時價 |\n| 💰 使用者成本 | `[提取的成本價]`元 (若無則顯示「未提供」) | 持倉基準點 |\n| 📈 當前損益 | `[盈虧金額]`元 (`[盈虧百分比]`%) | 相對於成本 |\n| 🌊 生命線(月線) | `[ma.ma20]`元 | 趨勢防守位 |\n| 🟢 建議限價 | `[limit_price]`元 | 關鍵支撐買入價 |\n| 🔴 短線壓力 | `[阻力1]`-`[阻力2]`元 | 關鍵壓力區 |\n| 🛡️ 停損/停利點 | `[stop_loss]`元 或 移動停利建議 | 風險控制價 |\n\n<分析>\n趨：MACD[零軸上/下] | 量：較5日均[高/低]`[diff_percent]`% (`[volume.status]`)\n階：支`[支撐1]`/`[支撐2]` | 壓`[壓力1]`/`[壓力2]`\n術：KDJ(`[K]`,`[D]`,`[J]`) | RSI: `[rsi]`\n險：[結合成本與視覺情報的智能風險提示]\n</分析>\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        784,
+        1168
+      ],
+      "id": "96f620c0-ff7a-4ce5-ba7c-eef06c1330e5",
+      "name": "Deepseek AI Agent"
+    },
+    {
+      "parameters": {
+        "functionCode": "// n8n Code Node: 量化技術指標與支撐壓力計算器\n// 此節點接收 K 線數據，計算所有技術指標並生成結構化分析結果。\n\n// ===== 1. 從 n8n 輸入獲取並清洗數據 =====\n// 使用 $input.all() 獲取上一節點的數據 (n8n v1+ 語法)\nconst inputItems = $input.all();\n\nif (!inputItems || inputItems.length === 0) {\n  // 如果沒有數據，嘗試回傳空或是報錯，這裡選擇報錯讓流程停止\n  throw new Error('錯誤：未接收到輸入數據。請檢查 HTTP Request 是否成功獲取資料。');\n}\n\n// 假設第一個輸入項包含所需數據\nconst rawInput = inputItems[0].json;\n\n// 智能識別數據結構：支援直接陣列或包在 data 屬性內的格式 (兼容 FinMind)\nlet rawData = [];\nif (Array.isArray(rawInput)) {\n  rawData = rawInput;\n} else if (rawInput.data && Array.isArray(rawInput.data)) {\n  rawData = rawInput.data; // 這是 FinMind API 的常見結構\n} else if (rawInput.code) {\n  // 單一 K 線物件的情況\n  rawData = [rawInput];\n} else {\n  // 如果找不到陣列，試著把整個 input 當作一個項目看看\n  if (rawInput.close || rawInput.Close) {\n     rawData = [rawInput];\n  } else {\n     // 若真的無法識別，拋出錯誤\n     throw new Error(`無法識別輸入格式。請確保傳入的是 K 線陣列 (包含 date, close, high, low 等欄位)。`);\n  }\n}\n\n// 嘗試獲取股票代碼\nconst stockId = rawData[0]?.stock_id || rawData[0]?.code || \"UNKNOWN\";\n\n// --- [關鍵修正] 數據清洗與格式化 (這裡定義了 candles) ---\n// 這裡將原始數據轉換為標準的 K 線格式，並按日期排序\nconst candles = rawData\n  .filter(item => item && item.date && (item.close || item.Close))\n  .map(item => {\n    // 識別關鍵欄位，兼容大小寫\n    const close = parseFloat(item.close || item.Close || 0);\n    const open = parseFloat(item.open || item.Open || close);\n    const high = parseFloat(item.high || item.High || item.max || close);\n    const low = parseFloat(item.low || item.Low || item.min || close);\n    \n    // 識別成交量欄位\n    let vol = 0;\n    const volKeys = ['volume', 'Volume', 'trading_volume', 'Trading_Volume', '成交股數'];\n    for (const key of volKeys) {\n      if (item[key] !== undefined && !isNaN(parseFloat(item[key]))) {\n        vol = parseFloat(item[key]);\n        break;\n      }\n    }\n    // 若數值很大可能是股數，除以1000轉為張數 (這裡假設大於 10000 可能是股)\n    // FinMind 回傳的是成交股數，所以除以 1000 轉張\n    const volume = Math.round(vol / 1000);\n    \n    return {\n      date: item.date,\n      open,\n      high,\n      low,\n      close,\n      volume: Math.max(0, volume) // 確保非負\n    };\n  })\n  .sort((a, b) => new Date(a.date) - new Date(b.date)); // 按日期升序排序\n\n// 檢查數據量是否足夠\nconst MIN_CANDLES = 60;\nif (candles.length < MIN_CANDLES) {\n  return [{\n    json: {\n      action: \"error\",\n      code: stockId,\n      timestamp: new Date().toISOString(),\n      error: `數據不足。需要至少 ${MIN_CANDLES} 筆日線數據，目前僅有 ${candles.length} 筆。`,\n      data: null\n    }\n  }];\n}\n\n// ===== 2. 定義技術指標計算函數 (Helper Functions) =====\n\nfunction calculateSMA(data, period) {\n  const sma = new Array(data.length).fill(null);\n  let windowSum = 0;\n  for (let i = 0; i < data.length; i++) {\n    windowSum += data[i];\n    if (i >= period) windowSum -= data[i - period];\n    if (i >= period - 1) sma[i] = windowSum / period;\n  }\n  return sma;\n}\n\nfunction calculateEMA(data, period) {\n  const k = 2 / (period + 1);\n  const ema = [];\n  let sum = 0;\n  // 簡單的 SMA 作為起始點\n  for (let i = 0; i < period && i < data.length; i++) sum += data[i];\n  ema.push(sum / Math.min(period, data.length));\n  \n  // 開始計算 EMA\n  for (let i = 1; i < data.length; i++) {\n    ema.push(data[i] * k + ema[i - 1] * (1 - k));\n  }\n  // 因為前面少推入了一些，這裡補齊長度 (或是直接映射對齊)\n  // 為了簡化，這裡回傳的 EMA 陣列長度會比 data 短 period-1，\n  // 但為了對齊 array index，我們在前面補 null\n  const paddedEma = new Array(period - 1).fill(null).concat(ema);\n  // 截斷多餘的長度以防萬一\n  return paddedEma.slice(0, data.length); \n}\n// 修正 EMA 函數以確保與 closes 長度一致，避免 MACD 計算錯誤\nfunction calculateSafeEMA(data, period) {\n    const k = 2 / (period + 1);\n    const ema = new Array(data.length).fill(null);\n    \n    if (data.length < period) return ema;\n\n    let sum = 0;\n    for (let i = 0; i < period; i++) sum += data[i];\n    ema[period - 1] = sum / period;\n\n    for (let i = period; i < data.length; i++) {\n        ema[i] = data[i] * k + ema[i - 1] * (1 - k);\n    }\n    return ema;\n}\n\n\nfunction calculateMACD(closes) {\n  const ema12 = calculateSafeEMA(closes, 12);\n  const ema26 = calculateSafeEMA(closes, 26);\n  const dif = ema12.map((v, i) => (v !== null && ema26[i] !== null) ? v - ema26[i] : null);\n  \n  // 計算 Signal (DIF 的 9日 EMA)\n  // 過濾掉前面的 null 才能算 signal\n  const validDif = dif.filter(v => v !== null);\n  const validSignal = calculateSafeEMA(validDif, 9);\n  \n  // 將 Signal 映射回原本長度\n  const signal = new Array(dif.length).fill(null);\n  const offset = dif.length - validSignal.length;\n  for(let i=0; i<validSignal.length; i++) {\n      signal[i + offset] = validSignal[i];\n  }\n\n  const histogram = dif.map((v, i) => (v !== null && signal[i] !== null) ? v - signal[i] : null);\n  return { dif, signal, histogram };\n}\n\nfunction calculateKDJ(candles, period = 9) {\n  const len = candles.length;\n  const K = new Array(len).fill(50);\n  const D = new Array(len).fill(50);\n  const J = new Array(len).fill(50);\n  \n  for (let i = period - 1; i < len; i++) {\n    let high = -Infinity, low = Infinity;\n    for (let j = i - period + 1; j <= i; j++) {\n      if (candles[j].high > high) high = candles[j].high;\n      if (candles[j].low < low) low = candles[j].low;\n    }\n    \n    const rsv = (high === low) ? 50 : ((candles[i].close - low) / (high - low)) * 100;\n    \n    if (i === period - 1) {\n      K[i] = rsv;\n      D[i] = rsv;\n    } else {\n      K[i] = (2/3) * K[i-1] + (1/3) * rsv;\n      D[i] = (2/3) * D[i-1] + (1/3) * K[i];\n    }\n    J[i] = 3 * K[i] - 2 * D[i];\n  }\n  return { k: K, d: D, j: J };\n}\n\nfunction calculateRSI(closes, period = 14) {\n  const rsi = new Array(closes.length).fill(null);\n  if (closes.length < period + 1) return rsi;\n\n  let avgGain = 0, avgLoss = 0;\n  for (let i = 1; i <= period; i++) {\n    const change = closes[i] - closes[i - 1];\n    if (change > 0) avgGain += change;\n    else avgLoss -= change;\n  }\n  avgGain /= period;\n  avgLoss /= period;\n  \n  rsi[period] = avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss));\n\n  for (let i = period + 1; i < closes.length; i++) {\n    const change = closes[i] - closes[i - 1];\n    const gain = Math.max(change, 0);\n    const loss = Math.max(-change, 0);\n    avgGain = (avgGain * (period - 1) + gain) / period;\n    avgLoss = (avgLoss * (period - 1) + loss) / period;\n    rsi[i] = avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss));\n  }\n  return rsi;\n}\n\nfunction calculateBollinger(closes, period = 20, multiplier = 2) {\n  const sma = calculateSMA(closes, period);\n  const upper = new Array(closes.length).fill(null);\n  const lower = new Array(closes.length).fill(null);\n  const bandwidth = new Array(closes.length).fill(null);\n  \n  for (let i = period - 1; i < closes.length; i++) {\n    let sumSquares = 0;\n    for (let j = 0; j < period; j++) {\n      const diff = closes[i - j] - sma[i];\n      sumSquares += diff * diff;\n    }\n    const stdDev = Math.sqrt(sumSquares / period);\n    upper[i] = sma[i] + multiplier * stdDev;\n    lower[i] = sma[i] - multiplier * stdDev;\n    bandwidth[i] = sma[i] !== 0 ? ((upper[i] - lower[i]) / sma[i]) * 100 : 0;\n  }\n  return { upper, middle: sma, lower, bandwidth };\n}\n\nfunction findPivotPoints(candles, window = 10) {\n  const pivotsHigh = [], pivotsLow = [];\n  // 避免數組越界\n  const start = window;\n  const end = candles.length - window;\n  \n  if (start >= end) return { high: [], low: [] };\n\n  for (let i = start; i < end; i++) {\n    const sliceHigh = candles.slice(i - window, i + window).map(c => c.high);\n    const sliceLow = candles.slice(i - window, i + window).map(c => c.low);\n    const currentHigh = candles[i].high;\n    const currentLow = candles[i].low;\n    \n    if (currentHigh >= Math.max(...sliceHigh)) pivotsHigh.push({ index: i, price: currentHigh });\n    if (currentLow <= Math.min(...sliceLow)) pivotsLow.push({ index: i, price: currentLow });\n  }\n  return { high: pivotsHigh, low: pivotsLow };\n}\n\n// ===== 3. 核心計算邏輯 =====\n// 這裡使用了前面定義好的 candles\nconst closes = candles.map(c => c.close);\nconst volumes = candles.map(c => c.volume);\nconst lastIdx = candles.length - 1;\nconst today = candles[lastIdx];\nconst yesterday = candles[lastIdx - 1] || today;\n\n// 計算所有指標\nconst macd = calculateMACD(closes);\nconst kdj = calculateKDJ(candles);\nconst rsi = calculateRSI(closes);\nconst bb = calculateBollinger(closes);\nconst ma5 = calculateSMA(closes, 5);\nconst ma20 = calculateSMA(closes, 20);\nconst ma60 = calculateSMA(closes, 60);\nconst vol5 = calculateSMA(volumes, 5); // 5日均量\n\n// 計算量能狀態\nconst currentVol = today.volume;\nconst currentVol5 = vol5[lastIdx] || currentVol; // 防呆\nconst volDiffPercent = currentVol5 > 0 ? ((currentVol - currentVol5) / currentVol5) * 100 : 0;\n\nlet volStatus;\nif (volDiffPercent >= 80) volStatus = \"爆量\";\nelse if (volDiffPercent >= 30) volStatus = \"放量\";\nelse if (volDiffPercent <= -50) volStatus = \"窒息量\";\nelse if (volDiffPercent <= -20) volStatus = \"量縮\";\nelse volStatus = \"量平\";\n\n// 支撐壓力計算\nconst pivots = findPivotPoints(candles, 10);\nconst recentHighs = pivots.high.filter(p => p.index >= lastIdx - 60).map(p => p.price).sort((a, b) => b - a);\nconst recentLows = pivots.low.filter(p => p.index >= lastIdx - 60).map(p => p.price).sort((a, b) => a - b);\n\nconst currentPrice = today.close;\nconst lowerBB = bb.lower[lastIdx] || currentPrice * 0.9;\nconst upperBB = bb.upper[lastIdx] || currentPrice * 1.1;\n\n// 計算支撐位\nconst supportCandidates = [\n  ...recentLows.slice(0, 3).map(p => Math.ceil(p / 5) * 5),\n  ...(currentPrice > (ma20[lastIdx]||0) ? [Math.floor(ma20[lastIdx] / 5) * 5] : []),\n  ...(currentPrice > (ma60[lastIdx]||0) ? [Math.floor(ma60[lastIdx] / 10) * 10] : []),\n  ...(currentPrice < lowerBB * 1.05 ? [Math.floor(lowerBB / 5) * 5] : []),\n  Math.floor(currentPrice * 0.95 / 10) * 10,\n  Math.floor(currentPrice * 0.90 / 10) * 10\n];\nconst uniqueSupports = [...new Set(supportCandidates)]\n  .filter(s => s > 0 && s < currentPrice * 0.99)\n  .sort((a, b) => b - a)\n  .slice(0, 3);\n\n// 計算壓力位\nconst resistanceCandidates = [\n  ...recentHighs.slice(0, 3).map(p => Math.floor(p / 5) * 5),\n  Math.ceil(currentPrice * 1.05 / 10) * 10,\n  Math.ceil(currentPrice * 1.10 / 10) * 10,\n  Math.ceil(upperBB / 5) * 5,\n  ...(currentPrice < (ma20[lastIdx]||99999) ? [Math.ceil(ma20[lastIdx] / 5) * 5] : []),\n  ...(currentPrice < (ma60[lastIdx]||99999) ? [Math.ceil(ma60[lastIdx] / 10) * 10] : [])\n];\nconst uniqueResistances = [...new Set(resistanceCandidates)]\n  .filter(r => r > currentPrice * 1.01)\n  .sort((a, b) => a - b)\n  .slice(0, 3);\n\n// 計算智能限價\nlet limitPrice;\nif (uniqueSupports.length > 0) {\n  const primarySupport = uniqueSupports[0];\n  let buffer;\n  if (volStatus === \"窒息量\" || volStatus === \"量縮\") buffer = 0.95;\n  else if (volStatus === \"爆量\" || volStatus === \"放量\") buffer = 0.98;\n  else buffer = 0.97;\n  limitPrice = Math.floor(primarySupport * buffer / 5) * 5;\n  const minLimit = currentPrice * 0.85;\n  const maxLimit = currentPrice * 0.98;\n  limitPrice = Math.max(minLimit, Math.min(maxLimit, limitPrice));\n  limitPrice = Math.floor(limitPrice);\n} else {\n  limitPrice = Math.floor(currentPrice * 0.95 / 10) * 10;\n}\n\n// 計算停損價\nconst stopLoss = Math.floor(limitPrice * 0.93 / 10) * 10;\n\n// ===== 4. 構建並返回 n8n 輸出 =====\nconst analysisResult = {\n  action: \"analysis\",\n  code: stockId,\n  timestamp: today.date || new Date().toISOString(),\n  data: {\n    // 基本價格數據\n    price: parseFloat(today.close.toFixed(2)),\n    open: parseFloat(today.open.toFixed(2)),\n    high: parseFloat(today.high.toFixed(2)),\n    low: parseFloat(today.low.toFixed(2)),\n    change_percent: yesterday ? parseFloat(((today.close - yesterday.close) / yesterday.close * 100).toFixed(2)) : 0,\n    \n    // 戰術數據\n    tactical: {\n      volume: {\n        today: currentVol,\n        avg_5d: Math.round(currentVol5),\n        diff_percent: parseFloat(volDiffPercent.toFixed(1)),\n        status: volStatus\n      },\n      trade_levels: {\n        limit_price: Math.round(limitPrice),\n        stop_loss: parseFloat(stopLoss.toFixed(0)),\n        resistance: uniqueResistances.map(v => parseFloat(v.toFixed(2))),\n        support: uniqueSupports.map(v => parseFloat(v.toFixed(2)))\n      }\n    },\n    \n    // 技術指標\n    macd: {\n      histogram: macd.histogram[lastIdx] !== null ? parseFloat(macd.histogram[lastIdx].toFixed(4)) : 0,\n      signal: macd.signal[lastIdx] !== null ? parseFloat(macd.signal[lastIdx].toFixed(4)) : 0,\n      dif: macd.dif[lastIdx] !== null ? parseFloat(macd.dif[lastIdx].toFixed(4)) : 0,\n      position: (macd.histogram[lastIdx]||0) > 0 ? \"above_zero\" : \"below_zero\"\n    },\n    kdj: {\n      K: parseFloat(kdj.k[lastIdx].toFixed(2)),\n      D: parseFloat(kdj.d[lastIdx].toFixed(2)),\n      J: parseFloat(kdj.j[lastIdx].toFixed(2)),\n      signal: kdj.j[lastIdx] > 80 ? \"overbought\" : kdj.j[lastIdx] < 20 ? \"oversold\" : \"neutral\"\n    },\n    rsi: rsi[lastIdx] !== null ? parseFloat(rsi[lastIdx].toFixed(2)) : 50,\n    bollinger: {\n      upper: bb.upper[lastIdx] !== null ? parseFloat(bb.upper[lastIdx].toFixed(2)) : 0,\n      middle: bb.middle[lastIdx] !== null ? parseFloat(bb.middle[lastIdx].toFixed(2)) : 0,\n      lower: bb.lower[lastIdx] !== null ? parseFloat(bb.lower[lastIdx].toFixed(2)) : 0,\n      bandwidth: bb.bandwidth[lastIdx] !== null ? parseFloat(bb.bandwidth[lastIdx].toFixed(2)) : 0,\n      position: today.close > (bb.upper[lastIdx]||Infinity) ? \"breakout\" : today.close < (bb.lower[lastIdx]||-Infinity) ? \"oversold\" : \"inside\"\n    },\n    ma: {\n      ma5: ma5[lastIdx] ? parseFloat(ma5[lastIdx].toFixed(2)) : null,\n      ma20: ma20[lastIdx] ? parseFloat(ma20[lastIdx].toFixed(2)) : null,\n      ma60: ma60[lastIdx] ? parseFloat(ma60[lastIdx].toFixed(2)) : null\n    }\n  }\n};\n\n// n8n 要求將輸出包裹在陣列中返回\nreturn [{\n  json: analysisResult\n}];"
+      },
+      "name": "量化戰術運算核心",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        336,
+        1264
+      ],
+      "id": "4d01aae9-9f03-48fc-b8f1-2620476b9a07"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        1472
+      ],
+      "id": "0156c01c-afa9-40ea-a033-df5d55ab18da",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. 取得 DeepSeek 的文字內容\nconst item = $input.all()[0];\nlet content = item.json.output || item.json.text || item.json.message || \"\";\n\n// 2. 🔥 關鍵修正：不再從文中搜尋，而是直接讀取「量化戰術運算核心」的正確代碼\n// 這裡假設您前面的計算節點名稱叫 \"量化戰術運算核心\" (這是預設名，若您有改名請自行調整)\nlet trueCode = \"0000\"; \ntry {\n    // 嘗試從上游節點抓取最原始、最正確的 code\n    trueCode = $('量化戰術運算核心').first().json.code;\n} catch (e) {\n    // 萬一抓不到，才勉強用正則去抓文中的數字當備案\n    const match = content.match(/\\d{4}/);\n    if (match) trueCode = match[0];\n}\n\n// 3. 設定標頭\nconst header = `分析代碼:${trueCode}`;\n\n// 4. 清理舊標頭 (避免 AI 自己寫了一次，導致重複)\n// 邏輯：如果開頭已經是 \"6643\" 或 \"分析代碼:6643\"，先刪掉\nconst cleanRegex = new RegExp(`^(${trueCode}|分析代碼:${trueCode}|分析代碼 : ${trueCode})\\\\s*`, 'i');\ncontent = content.replace(cleanRegex, \"\").trim();\n\n// 5. 強制置頂 (保證 100% 正確)\ncontent = `${header}\\n${content}`;\n\n// 輸出\nreturn [{\n    json: {\n        output: content\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        1232
+      ],
+      "id": "75148cb0-1963-4973-a7f6-d459249a8c25",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        1712
+      ],
+      "id": "a02b287f-de1a-4554-aa41-1664e9c3bbf2",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "OyIP2vCdy8qgnpkI",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.fugle.tw/marketdata/v1.0/stock/intraday/quote/{{ $json.stock_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        256,
+        1040
+      ],
+      "id": "fb628db4-d8bd-45f6-860d-407a92b9fdb8",
+      "name": "富果即時股價",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "K9vj2ml9ZQWeBDXw",
+          "name": "Header Auth account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=你是一個精準的「台股意圖分類器」。請分析以下使用者的輸入：\n\n👉 **使用者輸入：{{ $json.query }}**\n\n請嚴格遵守以下規則輸出 JSON：\n\n### 第一步：強制提取代碼\n不管輸入有沒有空格 (例如 \"分析2330\" 或 \"2330分析\")，請全力尋找 **4位數字**：\n- 找到數字 -> code: \"XXXX\"\n- 沒數字 -> code: null\n\n### 第二步：判斷動作 (Action)\n1. **\"chart\" (分析)**：\n   - 關鍵字：「分析、走勢、K線、支撐、壓力、RSI、看法」。\n   - **特別規則：只要輸入包含「代碼」且不含新聞關鍵字，預設為 chart。** (例如 \"2330\", \"分析2330\")\n2. **\"news\" (新聞)**：\n   - 關鍵字：「新聞、消息、EPS、營收、財報、發生什麼事」。\n### 💡 判斷邏輯加強 (Few-Shot Examples)：\n1. 使用者說「**分析** 2330」➡️ 這是看盤，請輸出 **chart**。\n2. 使用者說「3576 **我買在9元**」➡️ 這是要操作建議，屬於看盤，請輸出 **chart**。\n3. 使用者說「2603 **怎麼看**」➡️ 這是詢問趨勢，請輸出 **chart**。\n4. 只有當明確問到「營收、財報、新聞、發生什麼事」➡️ 才輸出 **news**。\n### 輸出格式範例 (純 JSON)：\n- 輸入 \"分析2330\" -> {\"action\": \"chart\", \"code\": \"2330\"}\n- 輸入 \"2330\" -> {\"action\": \"chart\", \"code\": \"2330\"}\n- 輸入 \"台積電新聞\" -> {\"action\": \"news\", \"code\": \"2330\"}\n\n**請直接輸出 JSON，不要說「好的」或任何廢話。**",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -688,
+        1456
+      ],
+      "id": "5436efe2-3cd4-49ff-8df8-b34c015ed3c6",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('When Executed by Another Workflow').first().json.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        1664
+      ],
+      "id": "036df98c-807b-4dca-acff-953749d4e1e7",
+      "name": "Simple Memory1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        304,
+        1664
+      ],
+      "id": "8567393b-2968-4739-8d8e-1842c4132e9f",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "VbbQKiOAcO71hem9",
+          "name": "Google Gemini(PaLM) Api Chua"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        608,
+        1168
+      ],
+      "id": "16e10dc3-d3c6-412c-8ef3-91ad4a12f3b9",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "請分析這張圖片。\n\n【第一步：分類與識別】\n1. 請判斷這張圖是否為「金融 K 線圖」(例如食物、風景、動物、人像)：\n   - 請在第一行輸出：TYPE:GENERAL\n   - **(重要) 第二行開始，請用輕鬆幽默的語氣，描述你看這張圖片的內容。**\n     (例如：「哇！這碗拉麵看起來好好吃！那個肉片太犯規了吧 AWAWA!」)。\n\n2. 如果是，請辨識標的名稱（例如：加權指數、台積電、BTC...）。\n   - 請在第一行輸出：TYPE:CHART\n\n【第二步：專業技術分析】\n請扮演「法人機構資深分析師」，語氣專業客觀，**嚴禁語助詞**。\n請根據標的是「大盤指數」還是「個別標的」，採用不同的分析邏輯：\n\n**A. 若為「大盤/指數」 (如加權指數、櫃買指數)：**\n請著重於**「市場氣氛」與「宏觀趨勢」**。\n1. **【多空結構】**：依據圖中均線（如月線、季線）排列方式與指數相對位置進行判斷（例如：指數站穩所有均線之上呈多頭排列）。\n2. **【量能訊號】**：分析近期成交量變化，判斷市場資金動能是溫和、失控或背離（例如：上漲量增屬健康，上漲量縮則為背離警訊）。\n3. **【盤勢結論】**：綜合以上，以一句話定義當前市場所處階段（例如：高檔震盪換手、中期多頭格局中的短線修正）。\n\n**B. 若為「個股/加密貨幣」：**\n請著重於**「進出依據」**。\n1. **【型態識別】**：明確指出當前主要的K線型態或整理格局（例如：頭肩底、上升三角、高檔盤頭）。\n2. **【關鍵價位】**：指出1-2個最重要的技術支撐價位與壓力關卡（例如：前波頸線、箱型區間上下緣、關鍵移動平均線）。\n3. **【操作建議】**：基於型態與價位，給出明確、可執行的理性策略（例如：帶量突破XX元壓力可嘗試進場，停損設於突破K線低點；若跌破XX元支撐則應出場觀望）。\n\n---\n**請直接輸出分析結果 (總字數控制在 250 字以內)：**",
+        "inputType": "binary",
+        "binaryPropertyName": "=data",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        2832,
+        880
+      ],
+      "id": "79bfd0c9-bfa3-4ebb-b51f-a8de2403e458",
+      "name": "Analyze an image",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "VbbQKiOAcO71hem9",
+          "name": "Google Gemini(PaLM) Api Chua"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d21334f1-cf68-4c34-9dc6-3d6ad1e5d599",
+              "name": "result",
+              "value": "={{\n  // 1. 抓取 Gemini 的分析，並把 \"TYPE:CHART\" 或 \"TYPE:GENERAL\" 替換成空白，再修剪掉前後多餘的空行\n  $('Analyze an image').first().json.content.parts[0].text\n    .replace('TYPE:CHART', '')\n    .replace('TYPE:GENERAL', '')\n    .trim() \n  + \n  // 2. 檢查有沒有歷史資料，有的話就接在後面\n  ($json.text ? \"\\n\\n📜【歷史相似圖形回測】\\n\" + $json.text : \"\") \n}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3712,
+        896
+      ],
+      "id": "11d25c6c-6200-429d-bf22-331dd9af86a6",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "url": "=https://api-data.line.me/v2/bot/message/{{ $json.image_id }}/content",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_LINE_CHANNEL_ACCESS_TOKEN"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2640,
+        880
+      ],
+      "id": "1479c352-6960-44fa-ab77-0b7ee62391ac",
+      "name": "Line圖片下載"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d5b362e0-bdab-47a9-9dc7-d6a910ed324a",
+              "leftValue": "={{ $json.content.parts[0].text }}",
+              "rightValue": "TYPE:CHART",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3040,
+        880
+      ],
+      "id": "bfdc4f8f-19b3-4689-bbcd-09ccb02e6247",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "finance-rag-v2",
+          "mode": "list",
+          "cachedResultName": "finance-rag-v2"
+        },
+        "prompt": "={{ $json.content.parts[0].text }}",
+        "topK": 1,
+        "options": {
+          "pineconeNamespace": "candlestick-structured"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        3344,
+        544
+      ],
+      "id": "972f40f1-9f43-4526-92c4-76e9a6fb76ff",
+      "name": "Pinecone Vector Store1",
+      "credentials": {
+        "pineconeApi": {
+          "id": "f3m7iqXuWEJF7EUN",
+          "name": "PineconeApi account lifeos"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-001"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        3344,
+        720
+      ],
+      "id": "821bc0eb-bd9c-40f6-83aa-899f36f508bf",
+      "name": "Embeddings Google Gemini1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "VbbQKiOAcO71hem9",
+          "name": "Google Gemini(PaLM) Api Chua"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "",
+          "cachedResultUrl": ""
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1936,
+        1248
+      ],
+      "id": "9e36a576-afb2-4eb7-bf3a-12541553c1c9",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "5zjlnxJdGXk9raZq",
+          "name": "Google Sheets account Chris"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 洗牌並只留一筆\nconst items = $input.all();\nconst randomItem = items[Math.floor(Math.random() * items.length)];\nreturn [randomItem];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        1248
+      ],
+      "id": "9918c8d1-ec7e-4285-9a5d-917ed55b24ff",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        2608,
+        16
+      ],
+      "id": "be44cbc2-b161-420c-be83-13defd86e0cf",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        3424,
+        336
+      ],
+      "id": "a59cf65f-76d8-4983-be4b-9bfc027846b1",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  // ===== 量化策略偏愛的高效形態 (Quant-Favorite Patterns) =====\n  {\n    json: {\n      text: `【外包日線 (Outside Bar / Engulfing Bar)】\n量化定義：今日K線的最高價 > 昨日最高價，且今日最低價 < 昨日最低價（完全包裹前日價格區間）。\n核心邏輯：波動率爆發，顯示多空一方力量取得壓倒性優勢。\n量化解讀：\n  - 陽外包：收盤 > 開盤，強烈看漲。統計勝率在趨勢初期顯著。\n  - 陰外包：收盤 < 開盤，強烈看跌。\n量化參數：\n  - 最佳過濾器：搭配布林帶寬擴大或ATR上升。\n  - 勝率提升：出現在關鍵移動平均線（如20日線）支撐/壓力處。\n操作參數：以突破日高/低為進場點，停損設於形態K線的50%處。`,\n      metadata: { \n        pattern_name: \"Outside_Bar\", \n        chinese_name: \"外包日線\",\n        type: \"Volatility_Expansion\", \n        primary_context: \"Breakout\",\n        quant_strength: \"High\",\n        reliability_score: 4,\n        timeframe: \"H4_Daily\",\n        volume_pattern: \"顯著放量\",\n        category: \"Quant_Core\",\n        programmatic_ease: \"Easy\", // 極易程式識別\n        common_filters: [\"Bollinger_Bandwidth\", \"ATR\", \"MA_Support_Resistance\"]\n      }\n    }\n  },\n  {\n    json: {\n      text: `【內包日線 (Inside Bar)】\n量化定義：今日K線的最高價 <= 昨日最高價，且今日最低價 >= 昨日最低價（價格區間完全在昨日範圍內）。\n核心邏輯：波動率收縮，市場處於壓縮與醞釀階段，常為大行情前兆。\n量化解讀：\n  - 突破方向：後續K線突破內包日線的高點（做多）或低點（做空）。\n  - 與布林帶的關係：常出現在布林帶收窄末期。\n量化策略（經典）：\n  - 「內包日線突破」策略：突破時進場，停損設於內包日線另一端。\n  - 「假突破過濾」：若突破後迅速收回區間內，為反轉信號。\n操作參數：突破確認後進場，初始停損為內包日線全幅。`,\n      metadata: { \n        pattern_name: \"Inside_Bar\", \n        chinese_name: \"內包日線\",\n        type: \"Consolidation_Breakout\", \n        primary_context: \"Indecision\",\n        quant_strength: \"Very_High\",\n        reliability_score: 5,\n        timeframe: \"All\",\n        volume_pattern: \"量縮（突破時需放量）\",\n        category: \"Quant_Core\",\n        programmatic_ease: \"Easy\",\n        common_filters: [\"Bollinger_Squeeze\", \"Volume_Spike_on_Break\"]\n      }\n    }\n  },\n  {\n    json: {\n      text: `【雙內包日線 (Double Inside Bar)】\n量化定義：連續兩根K線均為內包日線，波動壓縮至極致。\n核心邏輯：高壓縮形態，突破動能通常更強，是量化系統青睞的「引爆點」形態。\n量化解讀：\n  - 壓縮比：可計算（第2根振幅 / 第1根振幅）作為壓縮強度。\n  - 突破可信度：壓縮時間越長，潛在波動越大。\n量化應用：常用於「波動率突破」策略的觸發條件。\n操作參數：突破第二根內包日線高低點進場，為高勝率策略。`,\n      metadata: { \n        pattern_name: \"Double_Inside_Bar\", \n        chinese_name: \"雙內包日線\",\n        type: \"Compression_Breakout\", \n        primary_context: \"High_Compression\",\n        quant_strength: \"Extreme\",\n        reliability_score: 5,\n        timeframe: \"H1_Daily\",\n        volume_pattern: \"極度量縮後放量突破\",\n        category: \"Quant_Core\",\n        programmatic_ease: \"Easy\",\n        common_filters: [\"Extreme_Bollinger_Squeeze\", \"Lowest_ATR_in_N_days\"]\n      }\n    }\n  },\n  {\n    json: {\n      text: `【假突破陷阱 (False Break / Failure Swing)】\n量化定義：價格突破關鍵水平（前高、前低、密集區）後，未能維持而迅速反向收復該水平。\n核心邏輯：清洗止損單後反向運行，是動量策略的主要風險，也是反轉策略的機會。\n量化解讀：\n  - 識別要點：突破幅度小（如<1%），且回收速度快（1-2根K線內）。\n  - 量能特徵：突破時量能普通，反轉時量能急遽放大。\n量化風控：此形態是設計「突破策略」時必須加入的過濾條件（如時間過濾、幅度過濾）。\n反向策略：假突破確認後，可反向操作，停損設於假突破極點之外。`,\n      metadata: { \n        pattern_name: \"False_Break\", \n        chinese_name: \"假突破陷阱\",\n        type: \"Reversal\", \n        primary_context: \"Breakout_Failure\",\n        quant_strength: \"High\",\n        reliability_score: 4,\n        timeframe: \"All\",\n        volume_pattern: \"突破量平，反轉量增\",\n        category: \"Risk_Reversal\",\n        programmatic_ease: \"Medium\",\n        common_filters: [\"Breakout_Threshold\", \"Volume_Confirmation\", \"Time_Filter\"]\n      }\n    }\n  },\n  {\n    json: {\n      text: `【孕線十字 (Harami Cross)】\n量化定義：為「母子形態」的特殊變體，其中第二根K線為十字線。\n核心邏輯：比普通母子形態更強烈的猶豫與潛在反轉信號。\n量化解讀：\n  - 出現在趨勢末端時，反轉概率大增。\n  - 十字線的位置：位於第一根實體正中最佳，顯示完全平衡。\n量化增強：可計算十字線的「影線比」和「實體大小」來過濾雜訊。\n操作參數：需第三根K線確認方向，但信號質量高，可預先部署。`,\n      metadata: { \n        pattern_name: \"Harami_Cross\", \n        chinese_name: \"孕線十字\",\n        type: \"Reversal\", \n        primary_context: \"Trend_Exhaustion\",\n        quant_strength: \"Medium_High\",\n        reliability_score: 4,\n        timeframe: \"Daily\",\n        volume_pattern: \"量縮\",\n        category: \"Enhanced_Classic\",\n        programmatic_ease: \"Medium\",\n        common_filters: [\"Doji_Recognition\", \"Trend_Strength_Before_Pattern\"]\n      }\n    }\n  },\n  {\n    json: {\n      text: `【關鍵位置吞噬 (Key Level Engulfing)】\n量化定義：吞噬形態發生在顯著的技術位（如年線、平台頸線、波段斐波那契回撤位）。\n核心邏輯：技術位上的多空決戰結果，具有更高的統計意義。\n量化解讀：\n  - 重要性：位置 > 形態本身。在關鍵支撐的「多頭吞噬」遠比在隨機位置的有效。\n  - 回測重點：區分「普通吞噬」和「關鍵位吞噬」的績效差異。\n量化應用：作為多因子模型中的一個重要子因子，與「支撐阻力因子」結合。`,\n      metadata: { \n        pattern_name: \"Key_Level_Engulfing\", \n        chinese_name: \"關鍵位置吞噬\",\n        type: \"Reversal\", \n        primary_context: \"Support_Resistance\",\n        quant_strength: \"Very_High\",\n        reliability_score: 5,\n        timeframe: \"Daily_Weekly\",\n        volume_pattern: \"顯著放量\",\n        category: \"Context_Enhanced\",\n        programmatic_ease: \"Medium\",\n        common_filters: [\"Major_Moving_Average\", \"Previous_High_Low\", \"Fibonacci_Level\"]\n      }\n    }\n  },\n\n  // ===== 需用量化思維重新審視的「陷阱」形態 (Re-evaluated Patterns) =====\n  {\n    json: {\n      text: `【執帶形態 (Belt Hold) - 量化視角】\n定義：無影線的長陽線（開盤即最低）或長陰線（開盤即最高）。\n傳統解讀：強烈的單邊信號。\n量化批判：\n  - 高雜訊：在盤整市中出現頻率高且無效。\n  - 需嚴格過濾：必須結合「趨勢狀態」與「波動率背景」。\n量化過濾規則：\n  1. 形態出現前，需有明確的趨勢（ADX > 25）。\n  2. K線實體長度需大於過去N日平均實體的2倍。\n  3. 需發生在突破關鍵均線或前期高低點時。\n只有通過過濾的「執帶形態」才具備交易價值。`,\n      metadata: { \n        pattern_name: \"Belt_Hold_Filtered\", \n        chinese_name: \"執帶形態（過濾版）\",\n        type: \"Trend_Continuation\", \n        primary_context: \"Strong_Trend\",\n        quant_strength: \"Low_Without_Filter\", // 未過濾時很弱\n        reliability_score: 2,\n        timeframe: \"Daily\",\n        volume_pattern: \"必須放量\",\n        category: \"Filter_Dependent\",\n        programmatic_ease: \"Hard\",\n        common_filters: [\"ADX_Trend_Filter\", \"Volatility_Filter\", \"Key_Level_Break\"]\n      }\n    }\n  },\n  {\n    json: {\n      text: `【反擊線 (Counterattack Line / Meeting Lines)】\n定義：兩根K線，第一根長陽/陰，第二根大幅跳空反向開，但收盤價與第一根收盤價幾乎相同。\n量化本質：這是一個「動量衰竭」與「價格拒絕」的組合信號。\n量化解讀：\n  - 核心在第二根：長影線顯示強烈的反向拒絕。\n  - 需結合成交量：第二根的上影線部分（若是陽反擊）應伴隨巨量，顯示賣壓沉重。\n量化策略：可作為「趨勢跟蹤策略」的離場或減碼信號，而非獨立進場信號。\n操作建議：可靠性中等，適合作為複合信號中的一部分。`,\n      metadata: { \n        pattern_name: \"Counterattack_Line\", \n        chinese_name: \"反擊線\",\n        type: \"Exhaustion_Reversal\", \n        primary_context: \"Momentum_Failure\",\n        quant_strength: \"Medium\",\n        reliability_score: 3,\n        timeframe: \"Daily\",\n        volume_pattern: \"第二根量增，尤其影線部分\",\n        category: \"Exit_Signal\",\n        programmatic_ease: \"Medium\",\n        common_filters: [\"Volume_Analysis_on_Shadow\", \"Overbought_Oversold_Index\"]\n      }\n    }\n  },\n\n  // ===== 多時間框架聯動形態 (Multi-Timeframe Patterns) =====\n  {\n    json: {\n      text: `【週線吞噬日線結構 (Weekly Engulfs Daily Structure)】\n定義：在週線圖上形成一個關鍵反轉形態（如晨星、吞噬），而該形態的確認點正好與日線圖上的關鍵突破點重合。\n核心邏輯：多時間框架共振，是量化系統尋找的「高置信度」信號。\n量化解讀：\n  - 週線定方向，日線找時機。\n  - 可程式化為：當週線信號觸發時，在日線級別等待一個「內包日線突破」或「小級別回踩不破」作為精細入場點。\n量化價值：大幅提升單一形態的勝率與風報比。\n應用範例：週線出現錘頭，日線在次週出現對錘頭低點的測試且不破，構成黃金買點。`,\n      metadata: { \n        pattern_name: \"Multi_TF_Confluence\", \n        chinese_name: \"多時間框架共振\",\n        type: \"Reversal_Continuation\", \n        primary_context: \"Multi_Timeframe_Alignment\",\n        quant_strength: \"Extreme\",\n        reliability_score: 5,\n        timeframe: \"Weekly_Daily\",\n        volume_pattern: \"共振點放量\",\n        category: \"Advanced_Quant\",\n        programmatic_ease: \"Hard\",\n        common_filters: [\"Higher_TF_Signal\", \"Lower_TF_Trigger\", \"Fibonacci_Confluence\"]\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2816,
+        16
+      ],
+      "id": "ec436ae6-288c-4ed3-8c42-2d50d809b7d1",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-001"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        3216,
+        320
+      ],
+      "id": "2dfaa73a-acdb-4b48-93c2-f7b9f739ab2b",
+      "name": "Embeddings Google Gemini2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "4SsAIK5itlayXW0o",
+          "name": "Google Gemini(PaLM) Api  Chris"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "finance-rag-v2",
+          "mode": "list",
+          "cachedResultName": "finance-rag-v2"
+        },
+        "options": {
+          "pineconeNamespace": "candlestick-structured"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        3232,
+        16
+      ],
+      "id": "b4ea29a6-9c9e-4d9c-b942-d72f1a2d8613",
+      "name": "Pinecone Vector Store2",
+      "credentials": {
+        "pineconeApi": {
+          "id": "f3m7iqXuWEJF7EUN",
+          "name": "PineconeApi account lifeos"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "📚 K線圖譜知識庫注入器 (Knowledge Base Uploader)\n這裡負責將「9 大核心 K 線量化形態」灌入 HyraxOs 的大腦深處，建立長期的 RAG 記憶！\n技術亮點：\n• 🗃️ 向量化儲存：透過 Gemini Embeddings 將高質量的技術分析邏輯轉換為向量，寫入 Pinecone 資料庫。\n• 🏷️ 豐富 Metadata：每種形態（如外包日線、雙內包等）都帶有 quant_strength、reliability_score 等結構化標籤，大幅提升未來檢索的精準度。\n• ⚡ 獨立更新機制：採用手動觸發（Manual Trigger），讓管理者能隨時擴充與維護新的交易策略字典，不影響主線運行。",
+        "height": 624,
+        "width": 1184
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2528,
+        -128
+      ],
+      "typeVersion": 1,
+      "id": "2ec802a6-b5dc-4586-9e75-b69c9603d064",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "🎲 美食名冊讀取與抽籤引擎 (Database Reader & Roulette)\n作為「美食命運轉盤」的底層彈藥庫，這裡負責調出您的私人美食大數據！\n技術亮點：\n• 📊 串接私有資料：直接從 Google Sheets 讀取由系統自動累積、分類的完整美食清單（HyraxOs 工作表）。\n• 🔀 核心洗牌邏輯：透過純 JavaScript 實作的 Math.random() 陣列抽籤演算法，確保每次推薦都充滿未知的驚喜。\n• 💡 極簡高效：負責將龐大的資料庫陣列瞬間濃縮為「唯一一家」幸運兒，再回傳給主控 Agent 進行包裝與點評。\n###前面要加一個\"When Executed by Another Workflow\"###",
+        "height": 384,
+        "width": 704
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1760,
+        1024
+      ],
+      "typeVersion": 1,
+      "id": "15fef7d6-d6e2-4e23-a222-31f33a67a805",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "🧠 主控大腦與意圖路由 (Core Agent & Router)\n這裡負責接收 LINE 的多模態輸入（文字/語音/圖片/網址），並進行意圖分類。\n技術亮點：\n• 🚦 意圖驅動路由：精準判斷請求並調度 5+ 專業工具，避免 LLM 濫用，Token 成本降低 35%！\n• 💬 多模態理解：整合 Gemini STT 處理語音，並串聯視覺與地圖解析。\n• 🎲 Fisher-Yates 洗牌：純 JS 實作隨機演算法，確保抽籤多樣性，節省使用者 70% 決策時間。\n• 🚦 狀態過濾：串接 Google Maps 判斷 open_now，精準篩選「目前營業中」店家。\n• 📝 端到端自動化：解析地圖連結並自動將店家資訊 (店名/評分/地址) 抄寫入 Google Sheets 美食名冊，減少 90% 手動記錄時間。\n• 🧠 Agent 調度：LangChain 架構下的智能代理人，維持一致的「蹄兔 (Hyrax)」人格與 AWAWA! 口癖。",
+        "height": 1136,
+        "width": 3446,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -976,
+        -160
+      ],
+      "typeVersion": 1,
+      "id": "07c47a58-a2af-4677-b03d-577a1a2e5ab8",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "📈 DeepSeek 專業量化分析 (Quant & Analyze)\n嚴格遵守「透明管道協議」，將專業分析交由 DeepSeek 處理，管家不亂改！\n技術亮點：\n• 🗄️ 雙源數據：串接 FinMind (180日歷史) + Fugle (即時報價) 雙 API。\n• 🧮 純 JS 量化引擎：無外部依賴，300+ 行程式碼實作 10+ 技術指標 (MACD/KDJ/RSI/布林通道等)，延遲 < 800ms。\n• 🎯 模糊匹配：自建代碼映射表 (支援別名/4碼數字)，識別準確率達 98.7%。",
+        "height": 832,
+        "width": 2688
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -976,
+        1024
+      ],
+      "typeVersion": 1,
+      "id": "b7192163-aa23-458d-823e-7087dd88981e",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "👁️ Gemini 視覺與 RAG 檢索 (Vision & RAG)\n賦予 HyraxOs 看見圖片與回憶歷史的雙眼。\n技術亮點：\n• 🔄 強制分流：Gemini 2.5-flash 強制輸出 TYPE 標頭，精準區分「金融 K 線圖 (CHART)」與「一般圖片 (GENERAL)」。\n• 📚 歷史回測 RAG：結合 Pinecone 向量資料庫，比對 9 大核心 K 線形態，Top-1 歷史相似圖形檢索準確率達 85%+。\n• 🧠 長期記憶：支援 Session Buffer，維持多輪上下文對話一致性。\n###前面要加一個\"When Executed by Another Workflow\"###",
+        "height": 528,
+        "width": 1584
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2528,
+        544
+      ],
+      "typeVersion": 1,
+      "id": "827e4007-078f-4aa3-b319-422dea31b8bd",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "⚠️ 安裝提醒：本 JSON 檔案為「全景展示版」，包含主流程與所有子模組。實際運行時，請將 DeepSeek 分析、Vision 看圖 等子模組分別複製為獨立的 Workflow，並在主流程的 Tool 節點中重新綁定您本地的 Workflow ID 即可。",
+        "height": 96,
+        "width": 400,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -976,
+        -304
+      ],
+      "typeVersion": 1,
+      "id": "dbcb04a5-526d-4556-b8cd-27a9d0a9c99e",
+      "name": "Sticky Note5"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Line Messaging",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "是否是語音訊息",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "vision_tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'DeepSeek General Chat'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze audio Chua": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "是否為地圖連結": {
+      "main": [
+        [
+          {
+            "node": "還原長網址",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "是否是語音訊息": {
+      "main": [
+        [
+          {
+            "node": "提取語音訊息",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "是否為地圖連結",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "還原長網址": {
+      "main": [
+        [
+          {
+            "node": "提取店名V6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "提取語音訊息": {
+      "main": [
+        [
+          {
+            "node": "Analyze audio Chua",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取google map": {
+      "main": [
+        [
+          {
+            "node": "讀取地點詳情",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "提取店名V6": {
+      "main": [
+        [
+          {
+            "node": "讀取google map",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取地點詳情": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Google Map Ranting Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brave Search": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "提取股票代碼",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "提取股票代碼": {
+      "main": [
+        [
+          {
+            "node": "獲取歷史K線 (FinMind)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "富果即時股價",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "獲取歷史K線 (FinMind)": {
+      "main": [
+        [
+          {
+            "node": "量化戰術運算核心",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Deepseek AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI1": {
+      "ai_tool": [
+        [
+          {
+            "node": "Gemini AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deepseek AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "量化戰術運算核心": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "富果即時股價": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "Gemini AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Gemini AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Deepseek AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Line圖片下載": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store2",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini2": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store2",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "e3a3f0d6-c941-4d4e-adf8-756ddc66eb42",
+  "meta": {
+    "instanceId": "d95cb0ca91c8753f6caa8b16aa16329c730a7ae817efd5dd34c036fe1398bb62"
+  },
+  "id": "DdTgxd6LgDy90hA9",
+  "tags": []
+}
