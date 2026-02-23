@@ -59,8 +59,6 @@ LLM 模型：Google Gemini 2.5-flash、DeepSeek、Groq Llama-3.1
 ### 4. 端到端自動化
 丟 Google Maps 連結 → 自動解析店名/評分/營業時間 → 寫入 Google Sheets。減少 90% 手動記錄時間，目前已累積 500+ 筆美食數據。
 
----
-
 ### 5. 技術克服與效益成果
 
 | 問題 | 解法 | 成果 |
