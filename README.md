@@ -50,7 +50,7 @@ LLM 模型：Google Gemini 2.5-flash、DeepSeek、Groq Llama-3.1
 🧠 閒聊/回憶 → Pinecone Memory
 ```
 
-## 🎯 我解決的實際問題
+## 🎯技術克服與效益成果
 
 | 問題 | 解法 | 成果 |
 | :--- | :--- | :--- |
