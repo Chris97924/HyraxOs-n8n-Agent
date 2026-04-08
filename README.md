@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Chris97924/HyraxOs-n8n-Agent/main/hyrax.jpg" width="160" />
+  <img src="https://github.com/Chris97924/HyraxOs-n8n-Agent/blob/main/images%20(2).jpg" />
 
   # 🐹 HyraxOs — 多模態智能 LINE Bot
 
