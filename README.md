@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://github.com/Chris97924/HyraxOs-n8n-Agent/blob/main/images%20(2).jpg" />
 
-  # 🐹 HyraxOs — 多模態智能 LINE Bot
+  # 🐹 HyraxOs — 多模態智能 LINE Bot V2
 
   **n8n + 多模型路由 | LINE API | Pinecone RAG | FinMind + Fugle**
 
